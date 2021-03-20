@@ -1,0 +1,616 @@
+
+
+Radius 远程服务器搭建：
+
+一、方案选择：
+
+1.tekRadius 是一个应用在 pc 端的软件客户端，免费的版本不支持 eap-tls 方式的认证。
+
+2.freeRadius 是在 Linux 上搭建的一个服务器，开源代码可见，配置的方法比较灵活且不受限制。
+
+3.winRadius 是基于微软推出的一款 2008 server 服务器型系统，要使用这个必须重新安装 pc 的操作系统为服务器型系统。
+
+经研究，最终选择的是在 Ubuntu14.04 LTS 上搭建的 freeradius 服务器。
+
+
+
+
+
+二、 freeradius 的安装及注意：
+
+注意： Freeradius 安装方法分两种，一种是直接命令 sudo apt-get install freeradius, 我一开始就是使用的这种方法，比较快速的安装成功了，但是有一个缺点就是默认安装的版本是 v2.1.12 ，不是最新的版本 v3.0.17 ，这个猜测可能跟 Ubuntu 里面 apt-get 的源有关。这个版本是不能直接支持 eap-fast 的认证方式的，网上有方法是加入 hostap-06 开源库里的 eap-example 编译出 libeap.so 库加以支持 eap-fast 这个功能，这是在低版本添加 eap-fast 的做法。通过查看 freeradius 官方得版本更新文档，发现在 freeradius 最新版本 3.0.12 开始就支持内置好的 eap_fast 。目前选择的是官方发布的最新版本 3.0.17 。
+
+
+
+1. 编译及安装 freeradius-server-3.0.17.tar.gz:
+
+下载路径： http://freeradius.org /releases/
+
+安装： ( 跟普通的开源库安装方式没什么不同，但是需要注意依赖的库有 openssl ， talloc ， mysql 等，编译前请自行安装 )
+
+#sudo ./configure --prefix=/home/ron/wld_ work/freeradius/ src/out/freeradius_3.0.15/ --with-openssl-lib-dir=/home/ron/wld_work/freeradius/src/out/openssl/lib/ --with-openssl-include-dir=/home/ron/wld_work/freeradius/src/out/openssl/include
+
+--with-mysql-lib-dir=/home/ron/wld_work/freeradius/src/mysql-8.0.12-linux-glibc2.12-i686/lib --with-mysql-include-dir=/home/ron/wld_work/freeradius/src/mysql-8.0.12-linux-glibc2.12-i686/include --with-talloc-lib-dir=/home/ron/wld_work/freeradius/src/out/talloc/lib --with-talloc-include-dir=/home/ron/wld_work/freeradius/src/out/talloc/include( 注意替换成自己的工作路径 )
+
+#sudo make -j4
+
+#sudo make install
+
+Freeradius 跟 mysql 设置相关的可以参考： http://www.360doc.com/content/17/0308/09/597197_634914415.shtml
+
+
+
+由于我这边自行编译后的 radiusd 不能很好的支持 mysql ，会存在一个 malloc 的报错，具体是 talloc 还是 mysql 库，或者本身 freeradius 库存在的问题无法判断。在这里示范只做本地的 files 里面添加用户，不会影响 eap 各种认证，只是当用户量大了就不好维护。
+
+
+
+2. 配置 freeradius 服务器：
+
+注意安装目录下应该使用 sudo su 切换成 root 权限，否则无法运行应用程序。
+
+默认安装目录下的 sbin/radiusd 是可执行文件，需要看看系统有没有已经再运行的 radius 服务，如果有请用 service freeradius stop 停止服务后再用自己编译的 ./radiusd -X 进行调试测试。
+
+修改安装目录下的 etc/raddb/client.conf 文件
+
+需要再这里面把 radius 客户端的 ip 加进来，这边搭建的 radius 客户端是由 AC 无线控制器 WX2510H 扮演的， ip 为 192.168.0.100 ，故这样添加：
+
+client 192.168.0.100 {
+
+        ipaddr = 192.168.0.100
+
+        secret      = 12345
+
+        require_message_authenticator = no
+
+        nastype     = other
+
+}
+
+secret 是需要在 AC （ radius 客户端）上商量好跟 radius 服务器之间的通信密钥。
+
+另外需要在 radius.conf 里面检查下是否支持 $INCLUDE client.conf ，请把前面 # 去掉。
+
+3. 添加用户信息
+
+  在安装目录下的 etc/raddb/users 里面添加一条用户信息：
+
+ fredf  Cleartext-Password := “wilma”
+
+       Reply-Message := “hello,%{User-Name}”
+
+这样就可以添加一条用户名为 fredf ，密码为 wilma 的用户信息。系统默认安装就是支持 users 读取用户信息。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+三、 wpa_supplicant 编译：
+
+1． 下载安装 wpa_supplicant ：
+
+下载路径： http://w1.fi/releases/
+
+我选择的是最新的 wpa_supplicant-2.6.tar.gz ，这个库需要依赖一个 libnl.so ， openssl.so 跟 libz.so, 所以要先将这几个库编译安装好。
+
+
+
+2.libnl 的安装：（ wpa_supplicant 使用的 libnl 库为 1.x 版本， 2.0 版本的 API 与 1.0 的并不兼容，故这里移植 1.1 版本）
+
+下载地址 : http://www.infradead.org/~tgr/libnl/
+
+#./configure --enable-shared --prefix=/home_ext/wld/nfs/work/lib_src/out/libnl CC="arm-hisiv500-linux-gcc" --host=arm-hisiv500-linux  CPP="arm-hisiv500-linux-g++ -E" LD="arm-hisiv500-linux-ld" AR="arm-hisiv500-linux-ar"
+
+#make -j4
+
+#sudo make install
+
+
+
+3.zlib 的安装 :
+
+#./configure --shared --prefix=/home_ext/wld/nfs/work/lib_src/out/zlib
+
+#make LDSHARED="arm-hisiv500-linux-gcc -shared -Wl,-soname,libz.so.1"  CC="arm-hisiv500-linux-gcc"  CPP="arm-hisiv500-linux-g++ -E" LD="arm-hisiv500-linux-ld" AR="arm-hisiv500-linux-ar"
+
+#sudo make install
+
+
+
+4. openssl 的安装：（依赖 libopenssl_fips.so ， libz.so ）
+
+  . 先来 openssl_fips 的安装：
+
+#export  MACHINE=armv7
+
+#export RELEASE=3.18.20
+
+#export SYSTEM=Linux
+
+#export ARCH=arm
+
+#export CROSS_COMPILE=arm-hisiv500-linux-
+
+#export FIPS_SIG=$PWD/util/incore
+
+#export HOSTCC=gcc
+
+#./config --prefix=/home_ext/wld/nfs/work/lib_src/out/openssl_fips/
+
+#make
+
+#make install
+
+
+
+libopenssl 的安装 :
+
+#./config zlib fips no-asm shared --prefix=/home_ext/wld/nfs/work/lib_src/out/openssl
+
+这里需要注意修改下 makefile ：添加 EX_LIBS = -ldl -L$(LIBZLIB) -lz
+
+#make  CC="arm-hisiv500-linux-gcc" AR="arm-hisiv500-linux-ar r"  ZLIB_INCLUDE=-I/home_ext/wld/nfs/work/lib_src/out/zlib/include LIBZLIB=/home_ext/wld/nfs/work/lib_src/out/zlib/lib FIPSDIR=/home_ext/wld/nfs/work/lib_src/openssl-fips-2.0.16/  FIPSLIBDIR=/home_ext/wld/nfs/work/lib_src/openssl-fips-2.0.16/fips/
+
+#sudo make install
+
+
+
+
+
+5.wpa_supplicant 编译注意选项：
+
+#tar xvf wpa_supplicant-2.6.tar.gz
+
+#cd wpa_supplicant
+
+#cp defconfig .config
+
+修改 .config 相关选项：
+
+把刚刚编译的库添加路径到 .config 里
+
+
+
+把下面这些编译选项选为 y:
+
+CONFIG_DRIVER_WIRED=y
+
+CONFIG_IEEE8021X_EAPOL=y
+
+CONFIG_EAP_MD5=y
+
+CONFIG_EAP_MSCHAPV2=y
+
+CONFIG_EAP_TLS=y
+
+CONFIG_EAP_TTLS=y
+
+CONFIG_EAP-PEAP=Y
+
+CONFIG_EAP_FAST=y
+
+CONFIG_EAP_GTC=y
+
+CONFIG_EAP_OTP=y
+
+CONFIG_EAP_LEAP=y
+
+CONFIG_PKSC12=y
+
+CONFIG_SMARTCARD=y
+
+CONFIG_PEERKEY=y
+
+CONFIG_RADIUS_SERVER=y
+
+CONFIG_IPV6=y
+
+Openssl =OpenSSL(default)
+
+CONFIG_TLS=openssl
+
+CONFIG_TLSV11=y
+
+
+
+#make  CC="arm-hisiv500-linux-gcc" AR="arm-hisiv500-linux-ar r" LD="arm-hisiv500-linux-ld"
+
+#sudo make install
+
+这样就编译出 wpa_supplicant/wpa_cli 命令。
+
+
+
+
+
+
+
+
+
+四、 运行 wpa_supplicant
+
+编译出的 wpa_supplicant 比较大，需要将 wpa-supplicant 进行 #arm-hisiv500-linux-strip wpa-supplicant
+
+之后拷贝到板端的 /other_user 目录下 ( 可以自己选，需要 df 看看分区空间是否足够 ) ，还有相关的动态库一起拷贝进来并设置好环境变量。
+
+例如，我把依赖的 libopenssl.so,libz.so 等拷贝到 /other_user/lib, 把 wpa_supplicant 拷贝到 other_user/bin ，则一下执行命令：
+
+#export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/other_user/lib
+
+#export PATH=$PATH:/other_user/bin
+
+运行 wpa_supplicant 之前需要创建其配置文件：
+
+#touch /data/wpa_supplicant.wired.conf
+
+编辑一下内容：
+
+ctrl_interface=/var/run/wpa_supplicant
+
+ctrl_interface_group=root
+
+ap_scan=0
+
+network={
+
+key_mgmt=IEEE8021X
+
+
+
+#eap=MD5
+
+#identity="fredf"
+
+#password="wilma"
+
+#eapol_flags=0
+
+
+
+#eap=PEAP
+
+#identity="fredf"
+
+#password="wilma"
+
+#ca_cert="/data/cert/cacert.pem"
+
+#phase1="peaplabel=1"
+
+#phase2="auth=MSCHAPV2"  //phase2 是第二阶段的用户名密码验证的加密方法，只能选一种，选 MSCHAPV2 则把 GTC 注释掉，反之亦然
+
+#phase2="autheap=GTC"
+
+
+
+#eap=TLS
+
+#identity="fredf"
+
+#ca_cert="/data/cert/cacert.pem"
+
+#client_cert="/data/cert/client.crt"
+
+#private_key="/data/cert/client.key"
+
+#eapol_flags=0
+
+
+
+#eap=TTLS
+
+#identity="fredf"
+
+#anonymous_identity="anonymous"
+
+#password="wilma"
+
+#ca_cert="/data/cert/cacert.pem"
+
+#phase2="auth=MSCHAPV2"
+
+#phase2="autheap=GTC"
+
+
+
+
+
+#eap=TTLS
+
+#identity="fredf"
+
+#ca_cert="/data/cert/cacert.pem"
+
+#phase2="autheap=TLS"
+
+#ca_cert2="/data/cert/cacert.pem"
+
+#client_cert2="/data/cert/client.crt"
+
+#private_key2="/data/cert/client.key"
+
+
+
+
+
+eap=FAST
+
+anonymous_identity="FAST-000102030405"
+
+identity="fredf"
+
+password="wilma"
+
+phase1="fast_provisioning=1"
+
+pac_file="/data/wpa_supplicant.eap-fast-pac"
+
+
+
+}
+
+命令使用方法： #wpa_suppliant -B -i eth0 -c /data/wpa_supplicant.wired.conf -D wired;udhcpc -ieth0
+
+说明：需要用到哪一种 eap 的时候打开注释，注意在 tls ， peap ， ttls 这种需要证书验证的时候，需要添加 radius 服务端根证书 （位于 /etc/raddb/certs/ca.pem ）到板端目录 /data/cert/cacert.pem, 而 radius 服务端证书 直接用自带的（ /etc/raddb/certs/server.pem 及 /etc/raddb/certs/server.key ）。然后再用 openssl 命令做个自签证书用来充当板端（ host ）作为 radius 客户端根证书及证书。拷贝替换 radius 服务器里面的 /etc/raddb/certs/ca.pem ，并把自己做的客户端证书放在板端 /data/cert/client.crt 及 /data/cert/client.key 。
+
+注意证书验证方式的时候一定要检查板端的日期是否还是 1970 ，如果是，请手动将日期设置为当前时间，设置命令示范 #date -s “2018-08-14 12:30:00” 。
+
+
+
+运行 wpa_supplicant 的时候可以使用 tcpdump 抓包到 pc 端的 Wireshark 进行分析。
+
+#tcpdump -i eth0 -w xxx.pcapng
+
+
+
+
+
+
+
+
+
+五． AC 端（ wx2510h ）配置简单说明：
+
+
+
+# 创建 RADIUS 方案 radius1 并进入其视图。
+
+[AC] radius scheme radius1
+
+# 配置主认证 / 计费 RADIUS 服务器的 IP 地址为 192.168.0.12 。
+
+[AC-radius-radius1] primary authentication 192.168.0.12
+
+[AC-radius-radius1] primary accounting 192.168.0.12
+
+# 配置 AC 与认证 / 计费 RADIUS 服务器交互报文时的共享密钥为明文字符串 12345 。
+
+[AC-radius-radius1] key authentication simple 12345
+
+[AC-radius-radius1] key accounting simple 12345
+
+# 配置设备发送 RADIUS 报文使用的源 IP 地址为 192.168.0.100 。
+
+[AC-radius-radius1] nas-ip 192.168.0.100    // 即 AC 的 ip
+
+[AC-radius-radius1] quit
+
+# 创建名为 dom1 的 ISP 域并进入其视图。
+
+[AC] domain dom1
+
+# 配置 802.1X 用户使用 RADIUS 方案 radius1 进行认证、授权、计费。
+
+[AC-isp-dom1] authentication lan-access radius-scheme radius1
+
+[AC-isp-dom1] authorization lan-access radius-scheme radius1
+
+[AC-isp-dom1] accounting lan-access radius-scheme radius1
+
+[AC-isp-dom1] quit
+
+# 使能 RADUIS session control 功能。
+
+[AC] radius session-control enable
+
+# 开启 RADIUS DAE 服务，并进入 RADIUS DAE 服务器视图。
+
+[AC] radius dynamic-author server
+
+# 设置 RADIUS DAE 客户端的 IP 地址为 192.168.0.12 ，与 RADIUS DAE 客户端交互 DAE 报文时使用的共享密钥为明文 12345 。
+
+[AC-radius-da-server] client ip 192.168.0.12 key simple 12345  // 这个为 radius 服务器的 ip ，使用 RAIUS DAE 功能的时候是作为 RAIUS DAE 客户端的
+
+[AC-radius-da-server] quit
+
+(3)     配置 802.1X 认证
+
+# 配置 802.1X 系统的认证方法为 EAP 。
+
+[AC] dot1x authentication-method eap
+
+(4)     配置无线服务模板
+
+# 创建无线服务模板 service ，并进入无线服务模板视图。
+
+[AC] wlan service-template service
+
+# 配置 SSID 为 service 。
+
+[AC-wlan-st-service] ssid service
+
+# 配置身份认证与密钥管理的模式为 802.1X 。
+
+[AC-wlan-st-service] akm mode dot1x
+
+# 配置 CCMP 为加密套件，配 RSN 为安全信息元素。
+
+[AC-wlan-st-service] cipher-suite ccmp
+
+[AC-wlan-st-service] security-ie rsn
+
+# 配置用户接入认证模式为 802.1X 。
+
+[AC-wlan-st-service] client-security authentication-mode dot1x
+
+# 配置 802.1X 用户使用认证域为 dom1 。
+
+[AC-wlan-st-service] dot1x domain dom1
+
+# 使能无线服务模板。
+
+[AC-wlan-st-service] service-template enable
+
+[AC-wlan-st-service] quit
+
+# 创建 AP ，配置 AP 名称为 office ，型号名称选择 WA2620i-AGN ，并配置序列号 219801A0CNC178001022 。
+
+[AC] wlan ap office model WA2620i-AGN
+
+[AC-wlan-ap-office] serial-id 219801A0CNC178001022
+
+# 进入 Radio 1 视图。
+
+[AC-wlan-ap-office] radio 1
+
+# 将无线服务模板 service 绑定到 radio 1 ，并开启射频。
+
+[AC-wlan-ap-office-radio-1] service-template service
+
+[AC-wlan-ap-office-radio-1] radio enable
+
+[AC-wlan-ap-office-radio-1] quit
+
+[AC-wlan-ap-office] quit
+
+
+
+有线方式进行 802.1x 认证：
+
+浏览器登录 192.168.0.100 ，用户名： admin ，密码： admin
+
+网络安全 -> 访问控制：
+
+选择有线连到 AC 的对应端口 GE1/0/1~GE1/0/4 ，我这边选择的是 GE1/0/3
+
+然后勾上开启 802.1x ，接入控制方式为基于端口，再选择高级设置选项：
+
+配置如下：
+
+授权状态选择自动识别；
+
+取消在线用户握手功能；
+
+端口强制认证 isp 域选择 dom1 。
+
+其他按照默认，点击确定完成配置。
+
+
+
+通过 802.1x 的 eap-fast 认证的有线连接成功会出现：
+
+<H3C>display dot1x connection
+
+Total connections: 1
+
+Slot ID: 1
+
+User MAC address: d4e0-8eaa-1a06
+
+Access interface: GigabitEthernet1/0/3
+
+Username: FAST-000102030405
+
+Authentication domain: dom1
+
+Authentication method: EAP
+
+Initial VLAN: 1
+
+Authorization untagged VLAN: N/A
+
+Authorization tagged VLAN list: N/A
+
+Authorization ACL ID: N/A
+
+Authorization user profile: N/A
+
+Termination action: N/A
+
+Session timeout period: N/A
+
+Online from: 2018/08/14 14:34:14
+
+Online duration: 0h 0m 15s
+
+
+
+通过 802.1x 认证的无线连接成功会出现：
+
+<H3C>display wlan client
+
+Total number of clients: 1
+
+MAC address    User name  AP name        RID IP address      IPv6 address   VLAN
+
+00e1-8c2e-8245 fredf      office         1   192.168.0.5                    1
+
+<H3C>display dot1x connection
+
+Total connections: 1
+
+User MAC address           : 00e1-8c2e-8245
+
+AP name                    : office
+
+Radio ID                   : 1
+
+SSID                       : service
+
+BSSID                      : 9428-2e8a-26a0
+
+Username                   : fredf
+
+Authentication domain      : dom1
+
+IPv4 address               : 192.168.0.5
+
+Authentication method      : EAP
+
+Initial VLAN               : 1
+
+Authorization VLAN         : 1
+
+Authorization ACL number   : N/A
+
+Authorization user profile : N/A
+
+Termination action         : N/A
+
+Session timeout period     : N/A
+
+Online from                : 2018/08/14 13:44:09
+
+Online duration            : 0h 42m 44s
+
+
+
+
+
+
+
+
+
+
+

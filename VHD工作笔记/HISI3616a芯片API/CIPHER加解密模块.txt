@@ -1,0 +1,45 @@
+
+
+
+
+CIPHER 模块说明： HISI 芯片的加解密模块，主要用于音视频码 流进行加解密。支持以下三种加解密算法：
+DES ；
+3DES ；
+AES 。
+CIPHER 模块使用流程简述
+打开 CIPHER 设备，调用  HI_UNF_CIPHER_Open 接口完成；
+创建一路 CIPHER ， 并获取 CIPHER 句柄。调用  HI_UNF_CIPHER_CreateHandle 接口完成；
+  配置 CIPHER ， 包含密钥、初始向量、加密算法、 工作模式等信息。调用接口  HI_UNF_CIPHER_ConfigHandle 完成；
+对数据进行加解密；
+调用接口 HI_UNF_CIPHER_Encrypt 完成加密；
+  调用接口  HI_UNF_CIPHER_Decrypt 完成解 密。
+  销毁 CIPHER 句柄。调用接口  HI_UNF_CIPHER_DestroyHandle 完成；
+关闭 CIPHER 设备。调用接口 HI_UNF_CIPHER_Close 完成。
+注意事项
+  —次加解密操作的数据长度须小于 1MB, 若不满 足，则分成两部分进行处理；
+CIPHER 使用用户配置的 HI_UNF_CIPHER_BIT_WIDTH_E 值为块进行分块加 密；
+创建一路 CIPHER, 配置属性之后（假设配置的工 作模式需要使用 IV 向量），后面多次调用加解密接 口时， IV 向量会依次轮流使用，需要注意的是加解 密应该使用相同的向量进行，因此，建议重新配置 CIPHER 控制信息可以使 IV 向量从第一个开始使 用，以便统一加解密向量，除非加解密次序一致
+  每次加解密之前都进行配置 CIPHER 控制信息操 作，以使每次加解密操作都从 IV 向量起始位置开始 执行。
+CIPHER 提供以下 API：
+HI_UNF_CIPHER_Open: 打开 CIPHER 设备。
+HI_UNF_CIPHER_Close: 关闭 CIPHER 设备。
+  HI_UNF_CIPHER_CreateHandle: 创建一路 CIPHER ， 并获取 CIPHER
+HI_UNF_CIPHER_DestroyHandle: 销毁某路
+  HI_UNF_CIPHER_ConfigHandle: 配置 CIPHER 控制
+HI_UNF_CIPHER_Encrypt: 对数据进行
+HI_UNF_CIPHER_Decrypt ： 对数据进行解
+CIPHER 相关接口的具体使用方法 ( 代码需求： 头文件： hi_ error_ecs.h、hi_type.h、hi_unf_ecs.h、 priv_cipher.h  库文件： libhi_cipher.a (静态库) )
+HI_UNF_CIPHER_Open(HI_VOID): 打开 CIPHER
+参数:无
+返回值:成功返回 0 ， 失败返回错误
+HI_UNF_CIPHER_Close(HI_VOID): 关闭 CIPHER 设备
+参数:无
+返回值:成功返回 0 ， 失败返回错误码
+HI_UNF_CIPHER_CreateHandle(HI_HANDLE* phCipher): 创建一路 CIPHER ， 并获取该 CIPHER 的 句柄
+参数： phCipher 指针，改 CIPHER 的 句柄指针
+返回值：成功返回 0 ， 失败返回错误码
+注意
+最大支持 7 路 cipher
+不支持单分组加解密
+HI_UNF_CIPHER_DestroyHandle(HI_HANDLEhCipher): 销毁 hCipher 指定的 CIPHER
+

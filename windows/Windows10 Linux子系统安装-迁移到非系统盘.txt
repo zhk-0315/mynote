@@ -1,0 +1,430 @@
+Windows10 Linux子系统安装/迁移到非系统盘
+
+
+
+
+
+目录
+一、通过wsl命令迁移、备份Linux分发
+操作步骤
+如何配置wsl -import后的实例，默认以非root账户启动
+
+ 二、通过LxRunOffline实现
+三、不同发行版镜像交换/迁移
+ 四、WSL离线安装
+
+
+
+
+正文
+回到顶部 一、通过wsl命令迁移、备份Linux分发 操作步骤
+
+wsl(.exe)命令用法:
+
+ wsl -
+h
+命令行选项无效:
+-
+h
+版权所有 (c) Microsoft Corporation。保留所有权利。
+
+用法: wsl.exe [参数] [选项...] [命令行]
+
+用于运行 Linux 二进制文件的参数:
+
+    如果未提供命令行，wsl.exe 将启动默认的 shell。
+
+
+--exec, -e <命令行>
+
+        执行指定的命令而不使用默认的 Linux shell。
+
+
+--
+
+        按原样传递剩余的命令行。
+
+选项:
+
+--distribution, -d <分发版>
+
+        运行指定的分发。
+
+
+--user, -u <用户名>
+
+        以指定用户身份运行。
+
+用于管理适用于 Linux 的 Windows 子系统的参数:
+
+
+--export <分发版> <文件名>
+
+        将分发导出到 tar 文件。
+        对于标准输出，文件名可以是
+-
+。
+
+
+--import <分发版> <安装位置> <文件名>
+ [选项]
+        将指定的 tar 文件作为新分发进行导入。
+        对于标准输入，文件名可以是
+-
+。
+
+        选项:
+
+--version <版本>
+
+                指定用于新分发的版本。
+
+
+--list, -
+l [选项]
+        列出分发。
+
+        选项:
+
+--
+all
+                列出所有分发，包括当前正在
+                安装或卸载的分发。
+
+
+--
+running
+                只列出当前正在运行的分发。
+
+
+--quiet, -
+q
+                只显示分发名称。
+
+
+--verbose, -
+v
+                显示有关所有分发的详细信息。
+
+
+--set-
+default
+, -s <分发版>
+
+        将分发设置为默认值。
+
+
+--set-
+default
+-version <版本>
+
+        更改新分发的默认安装版本。
+
+
+--set-version <分发版> <版本>
+
+        更改指定分发的版本。
+
+
+--
+shutdown
+        立即终止所有正在运行的分发和 WSL
+2
+ 轻型工具虚拟机。
+
+
+--terminate, -t <分发版>
+
+        终止指定的分发。
+
+
+--unregister <分发版>
+
+        注销分发。
+
+
+--
+help
+        显示用法信息。
+
+
+在这之前可以通过 wsl --terminate <DistritubtionName> 的方式来先关闭相关的分发，以免后续造成不必要的问题。
+
+然后通过wsl --export <DistributionName> <FileName>选项导出Linux子系统.:
+
+wsl--export Ubuntu-18.04 d:/Ubuntu-18.04.tar
+
+Tips:此命令等效于:
+
+cd /mnt/c/Users/luoz/AppData/Local/Packages/CanonicalGroupLimited.Ubuntu18.04onWindows_79rhkp1fndgsc/LocalState/
+rootfs
+
+tar
+ -cf /mnt/d/Ubuntu-
+18.04
+.
+tar
+ .
+/*
+
+等待数十分钟,生成tar文件，文件结构如下：
+
+
+
+执行完后我们再通过 wsl --unregister Ubuntu-18.04 来注销这个分发，以便避免存在重复的分发，当然也可以不这样做，只是下面的命令需要指定一个不同的DistributionNam.
+
+接下来通过wsl --import <DistributionName> <InstallLocation> <FileName>来导入之前export完的分发：
+
+wsl --import Ubuntu d:/
+install
+/tools/Ubuntu d:/Ubuntu-
+18.04
+.
+tar
+
+此时我们就能通过 wsl --list 看到新导入的Linux分发了。
+
+重新导入后的Linux分发版不再以APP的形式出现于开始菜单中：
+
+这样操作以后不能像原来一样在开始菜单点击图标启动此Linux分发，其他并未改变。可以通过wsl -s Ubuntu命令、Windows terminal程序等方式启动。或者将其设为默认分发版，通过wsl、bash启动。
+
+另一方面，不能像原来那样在应用商店里更新。
+
+不存在原来那样的Ubuntu804.exe这样的命令。 如何配置 wsl -import 后的实例，默认以非root账户启动
+
+ 在注册表中找到 HKEY_USERS\xxx\Software\Microsoft\Windows\CurrentVersion\Lxss
+
+xxx为你当前用户在注册表中的代号：
+
+
+
+
+
+
+
+S-1-5-18：代表SYSTEM
+
+S-1-5-19：代表LocalService
+
+S-1-5-20：代表NetworkService
+
+接下来的S-1-5-21-.....便是代表当前用户了。
+
+接下来在Lxss下找到需要更改默认账户的分发版：
+
+
+
+
+
+
+
+ 通过修改Lxss下的实例配置中的 DefaultUid 的值来修改wsl默认的用户。
+
+ 可用的目标值可以通过在wsl中运行 cat /etc/passwd 获取，比如我这里用的是 1000，换算成对应的16进制数字是3e8。
+
+
+
+
+
+
+
+ 此时就大功告成，默认启动不再是root用户了。
+
+其实也可以通过下面介绍的LxRunOffline实现：
+
+LxRunOffline
+su
+ -n <systemname> -v
+1000
+回到顶部  二、通过LxRunOffline实现
+
+个人分析此命令是通过修改注册表里面的路径以实现无损迁移的。
+
+项目地址： https://github.com/DDoSolitary/LxRunOffline
+
+在项目地址里下载得到LxRunOffline命令。
+
+LxRunOffline的功能很多，迁移只是功能之一：
+
+oboth@DESKTOP-BUFOEB1:/mnt/c/Users/luoz$ /mnt/d/
+LxRunOffline.exe
+[ERROR] No action is specified.
+
+Supported actions are:
+    l, list            List all installed distributions.
+    gd, get
+-default    Get the default distribution,
+which
+ is used by bash.exe.
+    sd, set
+-default    Set the default distribution,
+which
+ is used by bash.exe.
+    i,
+install
+         Install a new distribution.
+    ui, uninstall      Uninstall a distribution.
+    rg, register       Register an existing installation directory.
+    ur, unregister     Unregister a distribution but not delete the installation directory.
+    m, move            Move a distribution to a new directory.
+    d, duplicate       Duplicate an existing distribution
+in
+ a new directory.
+    e, export          Export a distribution
+'
+s filesystem to a .tar.gz file, which can be imported by the "install" comm
+
+
+and.
+    r, run             Run a command
+in
+ a distribution.
+    di, get
+-
+dir
+        Get the installation directory of a distribution.
+    gv, get
+-
+version    Get the filesystem version of a distribution.
+    ge, get
+-
+env
+        Get the default environment variables of a distribution.
+    se, set
+-
+env
+        Set the default environment variables of a distribution.
+    ae, add
+-
+env
+        Add to the default environment variables of a distribution.
+    re, remove
+-
+env
+     Remove from the default environment variables of a distribution.
+    gu, get
+-
+uid        Get the UID of the default user of a distribution.
+
+su
+, set-
+uid        Set the UID of the default user of a distribution.
+    gk, get
+-
+kernelcmd  Get the default kernel command line of a distribution.
+    sk, set
+-
+kernelcmd  Set the default kernel command line of a distribution.
+    gf, get
+-flags      Get some flags of a distribution. See https:
+//
+docs.microsoft.com/en-us/previous-versions/windows/
+
+desktop/api/wslapi/ne-wslapi-wsl_distribution_flags
+for
+ details.
+    sf, set
+-flags      Set some flags of a distribution. See https:
+//
+docs.microsoft.com/en-us/previous-versions/windows/
+
+desktop/api/wslapi/ne-wslapi-wsl_distribution_flags
+for
+ details.
+    s, shortcut        Create a shortcut to launch a distribution.
+    ec, export
+-config  Export configuration of a distribution to an XML
+file
+.
+    ic, import
+-config  Import configuration of a distribution from an XML
+file
+.
+    sm, summary        Get general information of a distribution.
+    version            Get version information about this LxRunOffline.exe.
+
+
+
+
+可以看到LxRunOffline.exe包含了很多wsl.exe的功能。
+
+开始迁移：
+
+首先用 LxRunOffline.exe list或者wsl.exe -l 命令查看你可以使用子系统名称。
+
+然后使用  lxrunoffline move  进行迁移 ， -n 指定你要迁移的系统名 ，-d 指定你新系统的迁移路径。
+
+.\LxRunOffline.exe move -n Ubuntu -d d:\install\tools\Ubuntu
+
+迁移过程会出现WARNING 不用管， 等待一段时间结束就算迁移完成了。
+
+
+
+
+
+使用 LxRunOffline.exe get-dir  查询系统目录，可见已经更改成功。
+
+PS C:\Users\luoz>  d:\LxRunOffline.exe get-dir -
+n Ubuntu
+d:\install\tools\Ubuntu
+
+
+回到顶部 三、不同发行版镜像交换/迁移
+
+由于我最开始在应用商店下载了Ubuntu18.04 LTS，后来在子系统内升级到了Ubuntu20.04 LTS。但是名字还是显示Ubuntu18.04，并且后续也不能在应用商店内跟随升级。
+
+但应用商店内的Ubuntu确一直保持在最新LTS版本，可以在应用商店内保持更新。
+
+
+
+迫于强迫症的我，想要换到Ubuntu包，但又想保持Ubuntu18.04内的最新镜像和软件。于是试出了以下方法。
+
+1、首先将Ubuntu和Ubuntu1804都转换为wsl2。
+
+PS D:\> wsl --set-version Ubuntu 2
+
+PS D:\
+> wsl --set-version Ubuntu1804 2
+
+
+
+2、进到各自的目录交换ext4.vhdx文件。
+
+
+
+
+
+ 3、大功告成。若出现unregister错误只需用LxRunOffline重新注册一下即可。
+
+PS C:\Users\luoz>  d:\LxRunOffline.exe register -n Ubuntu-18.04 -d D:\install\tools\Ubuntu1804
+
+
+
+至此，镜像已经交换啦！
+回到顶部  四、WSL离线安装
+
+参照微软官方的文档，里面说得很详细了。
+
+https://docs.microsoft.com/en-us/windows/wsl/install-manual
+
+文档里包含了各个Linux发行版的下载链接。
+
+
+
+下载后的文件是appx格式，可以直接双击安装！
+
+安装后的路径在系统默认目录，可以参照上面的方法将rootfs迁移到其他目录。
+
+除此之外，也可以通过LxRunOffline来实现自定义安装:
+
+1、首先解压.appx文件
+
+2、用LxRunOffline安装：
+
+LxRunOffline -i -n <systemname> -d <rootfsdir> -f <systempack>
+
+#d:\Downloads\LxRunOffline.exe i -n Debian -d d:\install\Debian -f d:\Debian\install.tar.gz
+systemname是我们对子系统的命名，rootfsdir是我们安装后子系统的rootfs目录所在，systempack是我们解压出来的install.tar.gz文件，等待运行成功后，我们自定义根目录的子系统就创建好了。 通过命令终端输入wsl启动子系统，这时你会发现子系统啥都没有，进入直接就是root用户。另外开始菜单不会有单独的启动的图标，具体喜欢哪种方式就看自己个人的喜好了！
+作者 ： 書劍飄零
+出处 ： https://www.cnblogs.com/oboth-zl
+本文版权归作者和博客园所有，欢迎转载，但未经作者同意，必须保留此段声明，且在文章页面醒目位置显示原文连接，否则保留追究法律责任的权利。

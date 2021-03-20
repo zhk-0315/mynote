@@ -1,0 +1,1 @@
+mount -t nfs -o nolock,tcp 192.168.1.191:/home/zk/zk/mybin /mnt/nfs

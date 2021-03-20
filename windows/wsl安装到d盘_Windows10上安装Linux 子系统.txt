@@ -1,0 +1,73 @@
+
+
+
+
+为什么要安装Linux? 1 玩Linux, 2 想捣鼓docker能快点运行, 3 随便
+
+先开启windows10的Linux子系统功能:
+
+打开控制面板>卸载程序>启用或关闭windows功能:勾选上适用于Linux的windows子系统
+
+来源：  https://blog.csdn.net/weixin_39915367/article/details/111140075?utm_medium=distribute.pc_aggpage_search_result.none-task-blog-2~aggregatepage~first_rank_v2~rank_aggregation-1-111140075.pc_agg_rank_aggregation&utm_term=windows10%E5%AE%89%E8%A3%85linux%E5%AD%90%E7%B3%BB%E7%BB%9F%E5%88%B0d%E7%9B%98&spm=1000.2123.3001.4430 ，然后确定，需要重启机器。
+
+接着准备安装Ubuntu系统
+
+https://www.microsoft.com/zh-cn/ 上搜索 “Ubuntu 18.04 LTS”, 其他版本也是可以的.
+
+
+
+
+258M，尺寸还不小，
+
+最后安装Ubuntu系统
+
+下载完成后，在左下角输入ubuntu
+
+
+
+
+点击ubuntu 启动安装系统，
+
+
+
+
+
+设置用户名，密码，回车后，安装成功
+
+下次再次登录就直接进入bash了
+
+
+
+
+
+如果想变成root的话， 直接命令sudo su ，再输入密码。
+
+想知道如何访问c盘，d盘
+
+
+
+
+从ubuntu/windows10 创建/查看 文件夹/文件
+
+从ubuntu下访问d盘，创建目录tmp-from-ubt，
+
+
+
+
+从win10访问tmp-from-ubt目录，并建立文件。
+
+
+
+
+ubuntu下再查看文件内容：cat命令
+
+
+
+
+看来linux/windows共享了c盘，d盘，数据共享方便，不过误删目录，就都挂掉了。
+
+从速度上来看比vmware快多了,资源也占用的比较少.后期再安装软件折.
+
+参考资料:
+
+https://docs.microsoft.com/en-us/windows/wsl/install-win10

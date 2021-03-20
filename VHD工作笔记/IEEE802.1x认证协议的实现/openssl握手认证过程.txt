@@ -1,0 +1,244 @@
+
+
+1、 将 openssl 依赖的库文件拷贝到 arm 板的相关目录并配置好动态库环境变量。
+
+(1)       直接拷贝相关库到 J1700 板子的 /other_user 目录（注意如果拷贝到其他分区可能存在 flash 空间不够问题）。
+
+
+
+(2)       设置动态库环境变量。
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/other_user/lib
+
+2、 openssl 命令实现 s_server 端跟 s_client 端的握手认证步骤：
+
+(1)   配置 openssl.conf
+
+a 将 openssl.conf 拷贝到对应配置路径，根据编译指定安装路径有关。（可以跑 openssl 看看具体在报错哪里就拷贝到哪）。
+
+b 修改 openssl.conf 中的 [CA_default] 中的 dir 路径为 /etc/pki/CA
+
+c 创建各个配置目录及文件， #mdkir -p /etc/pki/CA , 并在 /etc/pki/CA 目录下
+
+分别创建 certs , crl, newcerts, private 目录及 serial ， index.txt 文件。（此步可查看配 置文件 openssl.conf 里面的相关设置）
+
+(2) 指明证书的开始编号
+
+# echo 01 >> serial
+
+(3) 生成私钥，私钥的文件名及放置位置与配置文件中的设置要一致：
+
+#umask 077 ； openssl genrsa out /etc/pki/CA/private/caket.pem 4096
+
+(4) 生成自签证书。
+
+#openssl req -new x509 -key /etc/pki/CA/private/cakey.pem -out /etc/pki/CA/cacert.pem        -days 365
+
+(5) 在使用证书的主机上生成私钥。 ( 在 s_server 端生成私钥 )
+
+#umask 077;openssl genrsa -out httpd.key 4096
+
+(6) 生成证书签署请求。 ( 在 s_server 端 )
+
+#openssl req -new -key httpd.key -out httpd.csr -days 365
+
+(7) 证书签署请求通过可靠的方式发送给 CA 主机： ( 即从 s_server 端拷贝到 s_client 端 )
+
+这边是通过挂载将文件发送到 CA 主机 .
+
+(8)CA 服务器拿到证书签署请求文件后颁发证书。 ( 在 s_client 端颁发证书 )
+
+#openssl ca -in ./httpd.csr -out /etc/pki/CA/certs/httpd.crt -days 365
+
+(9) 将 httpd.crt 证书拷贝到要使用的主机上。 ( 从 s_client 端拷贝到 s_server 端使用 )
+
+
+
+执行命令：
+
+s_server 端： openssl s_server -accept 443 -cert ./httpd.crt -key ./httpd.key -www( 使用 CA 主机 )
+
+s_client 端： openssl s_client -connect 192.168.100.177:443 -CAfile /etc/pki/CA/cacert.pem(CA 服务端 )
+
+
+
+s_client 端 log ：
+
+/share/openssl_bin # ./openssl s_client -connect 192.168.100.177:443 -CAfile /et
+
+c/pki/CA/cacert.pem
+
+CONNECTED(00000003)
+
+depth=1 C = CN, ST = ShenZhen, L = Shenzhen, O = vhd, OU = vhd.com, CN = www.vhd.nl
+
+verify return:1
+
+depth=0 C = CN, ST = ShenZhen, O = vhd, OU = vhd.com, CN = www.vhd.nl
+
+verify return:1
+
+---
+
+Certificate chain
+
+ 0 s:/C=CN/ST=ShenZhen/O=vhd/OU=vhd.com/CN=www.vhd.nl
+
+   i:/C=CN/ST=ShenZhen/L=Shenzhen/O=vhd/OU=vhd.com/CN=www.vhd.nl
+
+---
+
+Server certificate
+
+-----BEGIN CERTIFICATE-----
+
+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
+
+dDlMsfPNHVdk/gyGLWJV0I3J0op8Xi8=
+
+-----END CERTIFICATE-----
+
+subject=/C=CN/ST=ShenZhen/O=vhd/OU=vhd.com/CN=www.vhd.nl
+
+issuer=/C=CN/ST=ShenZhen/L=Shenzhen/O=vhd/OU=vhd.com/CN=www.vhd.nl
+
+---
+
+No client certificate CA names sent
+
+Peer signing digest: SHA512
+
+Server Temp Key: ECDH, P-256, 256 bits
+
+---
+
+SSL handshake has read 2387 bytes and written 443 bytes
+
+---
+
+New, TLSv1/SSLv3, Cipher is ECDHE-RSA-AES256-GCM-SHA384
+
+Server public key is 4096 bit
+
+Secure Renegotiation IS supported
+
+Compression: zlib compression
+
+Expansion: zlib compression
+
+No ALPN negotiated
+
+SSL-Session:
+
+    Protocol  : TLSv1.2
+
+    Cipher    : ECDHE-RSA-AES256-GCM-SHA384
+
+    Session-ID: 8792B4204BBDFECDE7CF099ACE7FCA3D2F40CA99816075E5CD5BD427DB0BD46C
+
+    Session-ID-ctx:
+
+    Master-Key: 1AF67A7C9C979713B04AC11A79C2ECCD53CAE5D8084C7B7B8BE166FB7ECFC08238644A209FA40E9903D60065BDA4984D
+
+    Key-Arg   : None
+
+    PSK identity: None
+
+    PSK identity hint: None
+
+    SRP username: None
+
+    TLS session ticket lifetime hint: 300 (seconds)
+
+    TLS session ticket:
+
+    0000 - 42 bd d9 1c ba c1 ce 2d-e9 21 5e 0f a0 c4 06 03   B......-.!^.....
+
+    0010 - 5d 6e 62 52 b8 97 47 d2-e5 6e 04 46 ed 05 5d 04   ]nbR..G..n.F..].
+
+    0020 - 86 6a d6 45 c1 56 8c b2-93 81 6c 2e 26 82 ec fe   .j.E.V....l.&...
+
+    0030 - 89 2f 35 e3 2e 48 25 bd-08 cc 8f 65 d9 7a 80 33   ./5..H%....e.z.3
+
+    0040 - 0d 86 8a aa 81 f8 99 49-41 d3 52 6e d2 32 67 57   .......IA.Rn.2gW
+
+    0050 - 5f f8 80 51 90 4c d3 ff-29 d3 b1 6c 8c a1 01 cb   _..Q.L..)..l....
+
+    0060 - 93 32 93 d0 06 b0 c3 a4-02 f4 5e ff b6 3c c0 08   .2........^..<..
+
+    0070 - 2b 9e a7 2a ed 8e 84 55-cb 12 2c 48 ed 51 da a6   +..*...U..,H.Q..
+
+    0080 - 2d c4 5e 0c 1f c9 f8 e1-9d 6c 7f 27 2f f3 15 78   -.^......l.'/..x
+
+    0090 - 36 6a fa 3e b9 30 5c b6-c7 1a ea b0 f5 e2 16 b6   6j.>.0\.........
+
+
+
+    Compression: 1 (zlib compression)
+
+    Start Time: 1530898273
+
+    Timeout   : 300 (sec)
+
+    Verify return code: 0 (ok)
+
+---
+
