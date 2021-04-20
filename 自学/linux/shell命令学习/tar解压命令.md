@@ -19,3 +19,5 @@ tar
   * bz2 格式的压缩命令
 * tar -zcvf xxxx.tar.gz xxxx
   * gz 格式的压缩命令
+
+
