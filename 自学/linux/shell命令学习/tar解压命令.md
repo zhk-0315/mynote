@@ -12,5 +12,10 @@ tar
   3. -Z：有compress属性的
   4. -v：显示所有过程
   5. -O：将文件解开到标准输出
-* 下面的参数'-f'是必须的 \
+* 下面的参数'-f'是必须的
   -f: 使用档案名字，切记，这个参数是最后一个参数，后面只能接档案名。
+
+* tar -jcvf xxxx.tar.bz2 xxxx
+  * bz2 格式的压缩命令
+* tar -zcvf xxxx.tar.gz xxxx
+  * gz 格式的压缩命令
